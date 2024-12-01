@@ -1,0 +1,18 @@
+FROM node:22 as build
+
+RUN apt-get update
+RUN apt-get -y install sqlite3 spatialite-bin
+
+FROM node:22
+
+COPY --from=build /usr/lib/ /usr/lib
+COPY --from=build /usr/bin/ /usr/bin
+
+WORKDIR /app
+
+COPY package.json /app/package.json
+COPY package-lock.json /app/package-lock.json
+
+RUN npm ci
+
+CMD npm run start-dev
