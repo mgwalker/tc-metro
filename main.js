@@ -38,22 +38,18 @@ const main = async () => {
     const pt = `ST_GEOMFROMTEXT('POINT(${lon} ${lat})',4326)`;
 
     // Get stops within 1 mile of the user
-    const sql = `SELECT stop_id,ST_DISTANCE(point,${pt},1) as distance FROM stops
+    const sql = `SELECT stop_id FROM stops
       WHERE PTDISTWITHIN(point,${pt},1609)
-      ORDER BY distance`;
+      ORDER BY ST_DISTANCE(point,${pt})`;
     const ids = await stops
       .query(sql)
-      .then((rows) =>
-        rows
-          .map(([id, meters]) => [+id, meters / 1609.34])
-          .filter(([id]) => id > 0),
-      );
+      .then((rows) => rows.map(([id]) => [+id]).filter(([id]) => id > 0));
 
     const results = await Promise.all(
-      ids.map(([id, distance]) =>
+      ids.map(([id]) =>
         fetch(`https://svc.metrotransit.org/nextrip/${id}`)
           .then((r) => r.json())
-          .then((r) => ({ ...r, id, distance })),
+          .then((r) => ({ ...r, id })),
       ),
     ).then((stops) => stops.filter(({ departures }) => departures.length > 0));
 
