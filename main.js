@@ -33,32 +33,43 @@ const main = async () => {
       res.code(400).send("Error: lon must be between -180 and +180");
     }
 
+    console.log(`got request for ${latitude}, ${longitude}`);
+
     const pt = `ST_GEOMFROMTEXT('POINT(${lon} ${lat})',4326)`;
-    const sql = `SELECT stop_id FROM stops
-      WHERE PTDISTWITHIN(point,${pt},1000)
-      ORDER BY ST_DISTANCE(point,${pt})
-      LIMIT 3`;
+
+    // Get stops within 1 mile of the user
+    const sql = `SELECT stop_id,ST_DISTANCE(point,${pt},1) as distance FROM stops
+      WHERE PTDISTWITHIN(point,${pt},1609)
+      ORDER BY distance`;
     const ids = await stops
       .query(sql)
-      .then((rows) => rows.map(([id]) => +id).filter((id) => id > 0));
+      .then((rows) =>
+        rows
+          .map(([id, meters]) => [+id, meters / 1609.34])
+          .filter(([id]) => id > 0),
+      );
 
     const results = await Promise.all(
-      ids.map((id) =>
+      ids.map(([id, distance]) =>
         fetch(`https://svc.metrotransit.org/nextrip/${id}`)
           .then((r) => r.json())
-          .then((r) => ({ ...r, id })),
+          .then((r) => ({ ...r, id, distance })),
       ),
     ).then((stops) => stops.filter(({ departures }) => departures.length > 0));
 
-    res.send(
-      results
+    if (results.length > 0) {
+      const buses = results
+        .slice(0, 3)
         .map((stop) => {
           const departure = stop.departures[0];
 
-          return `• Departing from ${stop.stops[0].description} at ${departure.departure_text} on bus ${departure.route_id} ${departure.direction_text} to ${departure.description} (stop ${stop.id})`;
+          return `• ${departure.departure_text}: bus ${departure.route_id} ${departure.direction_text} from ${stop.stops[0].description} to ${departure.description} (stop ${stop.id})`;
         })
-        .join("\n"),
-    );
+        .join("\n");
+      res.send(`Buses leaving within 1 mile:\n${buses}`);
+    } else {
+      res.send("No buses scheduled to depart within 1 mile");
+    }
   });
 
   server.listen({ port: process.env.PORT, host: "0.0.0.0" }, (err, address) => {
