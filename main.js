@@ -45,26 +45,24 @@ const main = async () => {
       .query(sql)
       .then((rows) => rows.map(([id]) => [+id]).filter(([id]) => id > 0));
 
-    // const results = await Promise.all(
-    //   ids.map(([id]) =>
-    //     fetch(`https://svc.metrotransit.org/nextrip/${id}`)
-    //       .then((r) => r.json())
-    //       .then((r) => ({ ...r, id })),
-    //   ),
-    // ).then((stops) => stops.filter(({ departures }) => departures.length > 0));
-    const results = ids.map(([id]) => id);
+    const results = await Promise.all(
+      ids.map(([id]) =>
+        fetch(`https://svc.metrotransit.org/nextrip/${id}`)
+          .then((r) => r.json())
+          .then((r) => ({ ...r, id })),
+      ),
+    ).then((stops) => stops.filter(({ departures }) => departures.length > 0));
 
     if (results.length > 0) {
-      // const buses = results
-      //   .slice(0, 3)
-      //   .map((stop) => {
-      //     const departure = stop.departures[0];
+      const buses = results
+        .slice(0, 3)
+        .map((stop) => {
+          const departure = stop.departures[0];
 
-      //     return `• ${departure.departure_text}: bus ${departure.route_id} ${departure.direction_text} from ${stop.stops[0].description} to ${departure.description} (stop ${stop.id})`;
-      //   })
-      //   .join("\n");
-      // res.send(`Buses leaving within 1 mile:\n${buses}`);
-      res.send(results.slice(0, 3));
+          return `• ${departure.departure_text}: bus ${departure.route_id} ${departure.direction_text} from ${stop.stops[0].description} to ${departure.description} (stop ${stop.id})`;
+        })
+        .join("\n");
+      res.send(`Buses leaving within 1 mile:\n${buses}`);
     } else {
       res.send("No buses scheduled to depart within 1 mile");
     }
